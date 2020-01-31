@@ -8,6 +8,8 @@ using System.Threading;
 using ApiSimples.Results;
 using System.Threading.Tasks;
 using System.Text.Json;
+using ApiSimples.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace ApiSimples.Controllers
 {
@@ -17,6 +19,9 @@ namespace ApiSimples.Controllers
     {
         private static ConcurrentBag<StreamWriter> _clients = new ConcurrentBag<StreamWriter>();
         private static List<Item> _itens = new List<Item>();
+        private readonly IHubContext<StreamingHub> _streaming;
+
+        public TodoController(IHubContext<StreamingHub> streaming) => _streaming = streaming;
 
         [HttpGet]
         public ActionResult<List<Item>> Get() => _itens;
@@ -76,9 +81,13 @@ namespace ApiSimples.Controllers
 
         private async Task WriteOnStream(Item data, string action)
         {
+            string jsonData = string.Format("{0}\n", JsonSerializer.Serialize(new { data, action }));
+            
+            //Utiliza o Hub para enviar uma mensagem para ReceiveMessage
+            await _streaming.Clients.All.SendAsync("ReceiveMessage", jsonData);
+
             foreach (var client in _clients)
             {
-                string jsonData = string.Format("{0}\n", JsonSerializer.Serialize(new { data, action }));
                 await client.WriteAsync(jsonData);
                 await client.FlushAsync();
             }
